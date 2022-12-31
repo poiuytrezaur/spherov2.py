@@ -37,7 +37,7 @@ class BleCentralStates(IntEnum):
 
 
 class Connection(Commands):
-    _did = 25
+    _did = 0x19
 
     @staticmethod
     def set_bluetooth_name(toy, name: bytes, proc=None):

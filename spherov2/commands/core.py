@@ -26,7 +26,7 @@ class PowerStates(IntEnum):
 
 
 class Core(Commands):
-    _did = 0
+    _did = 0x0
 
     @staticmethod
     def ping(toy, proc=None):

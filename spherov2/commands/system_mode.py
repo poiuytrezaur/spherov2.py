@@ -2,7 +2,7 @@ from spherov2.commands import Commands
 
 
 class SystemMode(Commands):
-    _did = 18
+    _did = 0x12
 
     @staticmethod
     def enable_desktoy_mode(toy, enable: bool, proc=None):

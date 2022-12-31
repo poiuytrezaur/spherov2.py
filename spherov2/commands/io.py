@@ -49,7 +49,7 @@ class TextScrollingReasonCodes(IntEnum):
 
 
 class IO(Commands):
-    _did = 26
+    _did = 0x1A
 
     @staticmethod
     def set_led(toy, s, s2, s3, s4, b, proc=None):  # Untested / Unknown Param Names
@@ -103,21 +103,20 @@ class IO(Commands):
 
     @staticmethod
     def set_compressed_frame_player_one_color(toy, r, g, b, proc=None):
-        toy._execute(IO._encode(toy, 47, proc, [r, g, b]))
+        toy._execute(IO._encode(toy, 0x2F, proc, [r, g, b]))
 
     @staticmethod
-    def save_compressed_frame_player64_bit_frame(toy, i, j, j2, j3, j4, proc=None):  # Untested / Unknown Param Names
-        toy._execute(IO._encode(toy, 48, proc, [i, j, j2, j3, j4]))
+    def save_compressed_frame_player64_bit_frame(toy, frame_index, compressed_frame, proc=None):
+        toy._execute(IO._encode(toy, 48, proc, [*to_bytes(frame_index, 2), *compressed_frame]))
 
     @staticmethod
-    def save_compressed_frame_player_animation(toy, s, s2, z, s3, s_arr, i, i_arr,
-                                               proc=None):  # Untested / Unknown Param Names
+    def save_compressed_frame_player_animation(toy, animation_id, fps: int, fade_animation:bool, palette_colors, frames_indexes, proc=None):
         toy._execute(IO._encode(
-            toy, 49, proc, [s, s2, int(z), s3, *s_arr, *struct.pack('>%dH' % (len(i_arr) + 1), i, *i_arr)]))
+            toy, 49, proc, [animation_id, fps % 31, int(fade_animation), len(palette_colors) // 3, *palette_colors, *struct.pack('>%dH' % (len(frames_indexes) + 1), len(frames_indexes), *frames_indexes)]))
 
     @staticmethod
-    def play_compressed_frame_player_animation(toy, s, proc=None):  # unknown names
-        toy._execute(IO._encode(toy, 50, proc, [s]))
+    def play_compressed_frame_player_animation(toy, animation_id, proc=None):  # unknown names
+        toy._execute(IO._encode(toy, 50, proc, [animation_id]))
 
     @staticmethod
     def play_compressed_frame_player_frame(toy, i, proc=None):  # unknown names
@@ -145,22 +144,23 @@ class IO(Commands):
         toy._execute(IO._encode(toy, 56, proc))
 
     @staticmethod
-    def override_compressed_frame_player_animation_global_settings(toy, proc=None):  # Untested / Unknown Param Names
-        toy._execute(IO._encode(toy, 57, proc))
+    def override_compressed_frame_player_animation_global_settings(toy, fps:int, fade_options:FadeOverrideOptions, proc=None):  # Untested / Unknown Param Names
+        toy._execute(IO._encode(toy, 0x39, proc, [fps, fade_options]))
 
     @staticmethod
-    def set_compressed_frame_player_frame_rotation(toy, b_arr, j, b, proc=None):  # Untested / Unknown Param Names
-        toy._execute(IO._encode(toy, 58, proc, [*b_arr, j, b]))
+    def set_compressed_frame_player_frame_rotation(toy, rotation: FrameRotationOptions, proc=None):
+        toy._execute(IO._encode(toy, 58, proc, [rotation.value]))
 
     @staticmethod
-    def set_compressed_frame_player_text_scrolling(toy, b_arr, j, b, proc=None):  # Untested / Unknown Param Names
-        toy._execute(IO._encode(toy, 59, proc, [*b_arr, j, b]))
+    def set_compressed_frame_player_text_scrolling(toy, str_to_display: str, r, g, b, speed: int, repeat: bool, proc=None):
+        toy._execute(IO._encode(toy, 59, proc, [r, g, b, speed % 0x1f, int(repeat), *[ord(c) for c in str_to_display[:25]], 0x00]))
 
     set_compressed_frame_player_text_scrolling_notify = (26, 60, 0xff), lambda listener, p: listener(
         p.data[0])  # Untested / Unknown Param Names
 
     @staticmethod
     def draw_compressed_frame_player_line(toy, x1, y1, x2, y2, r, g, b, proc=None):
+        print("ok", x1, y1, x2, y2, r, g, b)
         toy._execute(IO._encode(toy, 61, proc, [x1, y1, x2, y2, r, g, b]))
 
     @staticmethod
@@ -178,12 +178,12 @@ class IO(Commands):
         toy._execute(IO._encode(toy, 65, proc, [s, s2, int(z), s3, *s_arr, *to_bytes(i, 2)]))
 
     @staticmethod
-    def set_compressed_frame_player_single_character(toy, s, s1, s2, s3, proc=None):  # unknown names
-        toy._execute(IO._encode(toy, 66, proc, [s, s1, s2, s3]))
+    def set_compressed_frame_player_single_character(toy, r:int, g:int, b:int, character:str, proc=None):
+        toy._execute(IO._encode(toy, 0x42, proc, [r, g, b, ord(character)]))
 
     @staticmethod
-    def play_compressed_frame_player_animation_with_loop_option(toy, s, z, proc=None):
-        toy._execute(IO._encode(toy, 67, proc, [s, int(z)]))
+    def play_compressed_frame_player_animation_with_loop_option(toy, animation_id, loop, proc=None):
+        toy._execute(IO._encode(toy, 0x43, proc, [animation_id, int(loop)]))
 
     @staticmethod
     def get_active_color_palette(toy, proc=None):

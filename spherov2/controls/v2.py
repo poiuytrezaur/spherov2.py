@@ -57,6 +57,7 @@ class Packet(NamedTuple):
 
     @staticmethod
     def parse_response(data) -> 'Packet':
+        #print("Packet", ' '.join(format(x, '02x') for x in data))
         sop, *data, eop = data
         if sop != Packet.Encoding.start:
             raise PacketDecodingException('Unexpected start of packet')
@@ -75,12 +76,16 @@ class Packet(NamedTuple):
         sid = None
         if flags & Packet.Flags.has_source_id:
             sid = data.pop(0)
+        #print("Response packet", ' '.join(format(x, '02x') for x in data))
 
         did, cid, seq, *data = data
+        #print("Response seq ", seq)
+        #print("Response data", ' '.join(format(x, '02x') for x in data))
 
         err = Packet.Error.success
         if flags & Packet.Flags.is_response:
             err = Packet.Error(data.pop(0))
+        #print("Response code", err)
 
         return Packet(flags, did, cid, seq, tid, sid, bytearray(data), err)
 
@@ -149,12 +154,14 @@ class Packet(NamedTuple):
             self.__seq = 0
 
         def new_packet(self, did, cid, tid=None, data=None):
+            #print("Packet for command", did, cid, self.__seq, tid)
             flags = Packet.Flags.requests_response | Packet.Flags.is_activity
             sid = None
             if tid is not None:
                 flags |= Packet.Flags.has_source_id | Packet.Flags.has_target_id
                 sid = 0x1
             packet = Packet(flags, did, cid, self.__seq, tid, sid, bytearray(data or []))
+            #print("New Packet",' '.join(format(x, '02x') for x in packet.build()))
             self.__seq = (self.__seq + 1) % 0xff
             return packet
 
@@ -270,6 +277,11 @@ class SensorControl:
                     d = component.modifier(d)
                 n[name] = d
             data[sensor] = n
+        #print("len ", len(sensor_data))
+        #print("sensor_data", sensor_data)
+        #print("sensors", self.__toy.sensors.keys())
+        #print("sensors extended", self.__toy.extended_sensors.keys())
+        #print("enabled", self.__enabled.keys())
 
         for sensor, components in self.__toy.sensors.items():
             if sensor in self.__enabled:

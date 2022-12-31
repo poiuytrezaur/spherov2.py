@@ -10,7 +10,7 @@ import numpy as np
 from transforms3d.euler import euler2mat
 
 from spherov2.commands.animatronic import R2LegActions
-from spherov2.commands.io import IO
+from spherov2.commands.io import IO, FrameRotationOptions, FadeOverrideOptions
 from spherov2.commands.power import BatteryVoltageAndStateStates
 from spherov2.controls import RawMotorModes
 from spherov2.helper import bound_value, bound_color
@@ -40,8 +40,8 @@ class EventType(Enum):
     on_gyro_max = auto()  # [f.Sphero, f.Mini, f.Ollie, f.BB8, f.BB9E, f.BOLT, f.Mini]
     on_charging = auto()  # [f.Sphero, f.Ollie, f.BB8, f.BB9E, f.R2D2, f.R2Q5, f.BOLT]
     on_not_charging = auto()  # [f.Sphero, f.Ollie, f.BB8, f.BB9E, f.R2D2, f.R2Q5, f.BOLT]
-    on_magnetometer_north_yaw = auto()  # [f.BOLT] TODO
-    on_sensor_streaming_data = auto()  # [f.BOLT] TODO
+    on_magnetometer_north_yaw = auto()  # [f.BOLT]
+    on_sensor_streaming_data = auto()  # [f.BOLT]
     on_ir_message = auto()  # [f.BOLT, f.RVR] TODO
     on_color = auto()  # [f.RVR] TODO
 
@@ -91,6 +91,11 @@ class SpheroEduAPI:
         self.__raw_motor = rawMotor(0, 0)
         self.__leds = LedManager(toy.__class__)
 
+        self.__frame_index = 0
+        self.__animation_index = 0
+        self.__fps_override = 0 # 0 for animation defines
+        self.__fade_override = FadeOverrideOptions.NONE
+
         self.__sensor_data: Dict[str, Union[float, Dict[str, float]]] = {'distance': 0., 'color_index': -1}
         self.__sensor_name_mapping = {}
         self.__last_location = (0., 0.)
@@ -98,6 +103,7 @@ class SpheroEduAPI:
         self.__falling_v = 1.
         self.__last_message = None
         self.__should_land = self.__free_falling = False
+        self.__compass_zero = None
 
         self.__listeners = defaultdict(set)
         ToyUtil.add_listeners(toy, self)
@@ -276,6 +282,25 @@ class SpheroEduAPI:
         """Resets the heading calibration (aim) angle to use the current direction of the robot as 0°."""
         ToyUtil.reset_heading(self.__toy)
 
+    def calibrate_compass(self):
+        """
+        Calibrates the compass
+        """
+        if isinstance(self.__toy, BOLT):
+            self.__compass_zero = None
+            ToyUtil.calibrate_compass(self.__toy)
+            while self.__compass_zero is None:
+                time.sleep(0.1)
+
+    def set_compass_direction(self, direction:int):
+        """
+        Sets the direction relative to compass zero
+        """
+        if self.__compass_zero is None:
+            raise Exception("Compass is not calibrated")
+        self.__heading = (self.__compass_zero + direction) % 360
+        ToyUtil.roll_start(self.__toy, self.__heading, self.__speed)
+
     # Star Wars Droid Movements
     def play_animation(self, animation: IntEnum):
         """Plays iconic `Star Wars Droid animations <https://edu.sphero.com/remixes/1195472/>`_ unique to BB-8, BB-9E,
@@ -386,36 +411,140 @@ class SpheroEduAPI:
                 self.set_main_led(Color(0, 0, 0))
             time.sleep(period)
 
-    # TODO Sphero BOLT Lights
+    def register_matrix_animation(self, frames:list[list[list[int]]], palette:list[Color], fps:int, transition:bool):
+        """
+        Registers a matrix animation
+        Frames is a list of frame. Each frame is a list of 8 row, each row is a list of 8 ints (from 0 to 15, index in color palette)
+        palette is a list of colors
+        fps
+        transition to true if fade between frames
+        """
+        if isinstance(self.__toy, BOLT):
+            frame_indexes = []
+            for frame in frames:
+                compressed_frame = []
+                for idx in range(4):
+                    for row_idx in range(7, -1, -1):
+                        res = 0
+                        for col_idx in range(8):
+                            bit = (frame[row_idx][col_idx] & 1 << idx) >> idx
+                            res |= bit << (7 - col_idx)
+                        compressed_frame.append(res)
+                ToyUtil.save_compressed_frame_player64_bit_frame(self.__toy, self.__frame_index, compressed_frame)
+                frame_indexes.append(self.__frame_index)
+                self.__frame_index += 1
+            palette_colors = []
+            for color in palette:
+                palette_colors += list(color._asdict().values())
+            ToyUtil.save_compressed_frame_player_animation(self.__toy, self.__animation_index, fps, transition, palette_colors, frame_indexes)
+            self.__animation_index += 1
+
+    def play_matrix_animation(self, animation_id, loop=True):
+        """
+        Plays a matrix animation
+        """
+        if isinstance(self.__toy, BOLT):
+            ToyUtil.play_compressed_frame_player_animation_with_loop_option(self.__toy, animation_id, loop)
+
+    def pause_matrix_animation(self):
+        """
+        Pause a matrix animation
+        """
+        if isinstance(self.__toy, BOLT):
+            ToyUtil.pause_compressed_frame_player_animation(self.__toy)
+
+    def clear_matrix(self):
+        """
+        Clears a matrix animation
+        """
+        if isinstance(self.__toy, BOLT):
+            ToyUtil.reset_compressed_frame_player_animation(self.__toy)
+
+    def resume_matrix_animation(self):
+        """
+        Resume a matrix animation
+        """
+        if isinstance(self.__toy, BOLT):
+            ToyUtil.resume_compressed_frame_player_animation(self.__toy)
+
+    def override_matrix_animation_framerate(self, fps: int = 0):
+        """
+        Overrides animation fps
+        """
+        if isinstance(self.__toy, BOLT):
+            self.__fps_override = fps
+            ToyUtil.override_compressed_frame_player_animation_global_settings(self.__toy, self.__fps_override, self.__fade_override)
+
+    def override_matrix_animation_transition(self, option:FadeOverrideOptions = FadeOverrideOptions.NONE):
+        """
+        Override animations transition
+        """
+        if isinstance(self.__toy, BOLT):
+            self.__fade_override = option
+            ToyUtil.override_compressed_frame_player_animation_global_settings(self.__toy, self.__fps_override, self.__fade_override)
+
+    def set_matrix_rotation(self, rotation:FrameRotationOptions):
+        """
+        Rotates the led matrix
+        """
+        if isinstance(self.__toy, BOLT):
+            ToyUtil.set_matrix_rotation(self.__toy, rotation)
+
+    def scroll_matrix_text(self, text: str, color: Color, fps: int, wait: bool):
+        """
+        Scrolls text on the matrix, with specified color.
+        text max 25 characters
+        Fps 1 to 30
+        wait : if the programs wait until completion
+        """
+        # TODO Implement wait
+        if isinstance(self.__toy, BOLT):
+            ToyUtil.scroll_matrix_text(self.__toy, text, color, fps)
+
+    def set_matrix_character(self, character:str, color:Color):
+        """
+        Sets a character on the matrix with color specified
+        """
+        if isinstance(self.__toy, BOLT):
+            ToyUtil.set_matrix_character(self.__toy, character, color)
+
     def set_matrix_pixel(self, x: int, y: int, color: Color):
         """For Sphero BOLT: Changes the color of BOLT's matrix at X and Y value. 8x8
         """
         strMapLoc: str = str(x) + ':' + str(y)
-        self.__leds[strMapLoc] = bound_color(color, self.__leds[
-            strMapLoc])  # TODO: Do this in a way that works with line and fill
+        self.__leds[strMapLoc] = bound_color(color, self.__leds[strMapLoc])
         ToyUtil.set_matrix_pixel(self.__toy, x, y, **self.__leds[strMapLoc]._asdict(), is_user_color=False)
 
     def set_matrix_line(self, x1: int, y1: int, x2: int, y2: int, color: Color):
         """For Sphero BOLT: Changes the color of BOLT's matrix from x1,y1 to x2,y2 in a line. 8x8
         """
-        strMapLoc: str = str(x1) + 'x' + str(y1) + '|' + str(x2) + 'x' + str(y2)
-        self.__leds[strMapLoc] = bound_color(color, self.__leds[
-            strMapLoc])  # TODO: Do this in a way that works with pixel and fill (needs to be accurate to diagonal lines)
-        ToyUtil.set_matrix_line(self.__toy, x1, y1, x2, y2, **self.__leds[strMapLoc]._asdict(), is_user_color=False)
+        if isinstance(self.__toy, BOLT):
+            dx = x2 - x1
+            dy = y2 - y1
+            if (dx != 0 and dy != 0 and dx != dy) or (dx == 0 and dy == 0):
+                raise Exception("Can only draw straight lines and diagonals")
+            line_length = max(dx, dy)
+            for line_increment in range(line_length):
+                x_ = x1 + (dx / line_length) * line_increment
+                y_ = x1 + (dx / line_length) * line_increment
+                strMapLoc: str = str(x_) + ':' + str(y_)
+                self.__leds[strMapLoc] = bound_color(color, self.__leds[strMapLoc])
+            ToyUtil.set_matrix_line(self.__toy, x1, y1, x2, y2, color.r, color.g, color.b, is_user_color=False)
 
     def set_matrix_fill(self, x1: int, y1: int, x2: int, y2: int, color: Color):
         """For Sphero BOLT: Changes the color of BOLT's matrix from x1,y1 to x2,y2 in a box. 8x8
         """
-        strMapLoc: str = str(x1) + 'x' + str(y1) + '[]' + str(x2) + 'x' + str(y2)
-        self.__leds[strMapLoc] = bound_color(color, self.__leds[
-            strMapLoc])  # TODO: Do this in a way that works with pixel and line
-        ToyUtil.set_matrix_fill(self.__toy, x1, y1, x2, y2, **self.__leds[strMapLoc]._asdict(), is_user_color=False)
+        if isinstance(self.__toy, BOLT):
+            x_min = min(x1, x2)
+            x_max = max(x1, x2)
+            y_min = min(y1, y2)
+            y_max = max(y1, y2)
+            for x_ in range(x_min, x_max + 1):
+                for y_ in range(y_min, y_max + 1):
+                    strMapLoc: str = str(x_) + ':' + str(y_)
+                    self.__leds[strMapLoc] = bound_color(color, self.__leds[strMapLoc])
+            ToyUtil.set_matrix_fill(self.__toy, x1, y1, x2, y2, color.r, color.g, color.b, is_user_color=False)
 
-    def register_matrix_animation(self, s, s2, z, s3, s_arr, i, i_arr):  # TODO: fix this function
-        ToyUtil.register_matrix_animation(self.__toy, s, s2, z, s3, s_arr, i, i_arr)
-
-    def play_matrix_animation(self, s):
-        ToyUtil.play_matrix_animation(self.__toy, s)
 
     # Sphero RVR Lights
     def set_left_headlight_led(self, color: Color):
@@ -490,7 +619,7 @@ class SpheroEduAPI:
             sensors = ['accelerometer', 'gyroscope', 'imu', 'locator', 'velocity', 'ambient_light', 'color_detection']
             self.__sensor_name_mapping['imu'] = 'attitude'
         elif isinstance(self.__toy, BOLT):
-            sensors = ['accelerometer', 'gyroscope', 'attitude', 'locator', 'velocity', 'ambient_light']
+            sensors = ["accel_one", 'accelerometer', 'ambient_light', 'attitude', "core_time", 'gyroscope', 'locator', "quaternion", 'velocity']
         else:
             sensors = ['attitude', 'accelerometer', 'gyroscope', 'locator', 'velocity']
         ToyUtil.enable_sensors(self.__toy, sensors)
@@ -549,6 +678,7 @@ class SpheroEduAPI:
         self.__call_event_listener(EventType.on_gyro_max)
 
     def _magnetometer_north_yaw_notify(self, flags):
+        self.__compass_zero = flags
         self.__call_event_listener(EventType.on_magnetometer_north_yaw)
 
     def _sensor_streaming_data_notify(self, flags):
@@ -635,7 +765,12 @@ class SpheroEduAPI:
         return self.__leds.get('main', None)
 
     # Sphero BOLT Sensors
-    # TODO Compass Direction
+    # TODO verify that it is the same value as API (relative to current heading or reset heading)
+    def get_compass_direction(self):
+        """
+        Returns compass 0. None if compass not calibrated
+        """
+        return self.__compass_zero
 
     def get_luminosity_direct(self):
         """similar to get_luminosity, however this is a more direct call to the sphero to get a value directly"""
@@ -773,7 +908,7 @@ class SpheroEduAPI:
         **Note**: listeners will be called in a newly spawned thread, meaning the caller have to deal with concurrency
         if needed. This library is thread-safe."""
         if event_type not in EventType:
-            raise ValueError('Event type {event_type} does not exist')
+            raise ValueError(f'Event type {event_type} does not exist')
         if listener:
             self.__listeners[event_type].add(listener)
         else:

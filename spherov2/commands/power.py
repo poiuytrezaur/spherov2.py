@@ -62,7 +62,7 @@ class EfuseIds(IntEnum):
 
 
 class Power(Commands):
-    _did = 19
+    _did = 0x13
 
     @staticmethod
     def enter_deep_sleep(toy, s, proc=None):
@@ -113,7 +113,7 @@ class Power(Commands):
 
     @staticmethod
     def get_charger_state(toy, proc=None):  # Untested
-        return toy._execute(Power._encode(toy, 31, proc)).data[0]
+        return toy._execute(Power._encode(toy, 0x1F, proc)).data[0]
 
     @staticmethod
     def enable_charger_state_changed_notify(toy, enable: bool, proc=None):

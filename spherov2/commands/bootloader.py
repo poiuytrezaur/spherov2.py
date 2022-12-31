@@ -2,7 +2,7 @@ from spherov2.commands import Commands
 
 
 class Bootloader(Commands):
-    _did = 1
+    _did = 0x1
 
     @staticmethod
     def begin_reflash(toy, proc=None):

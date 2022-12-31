@@ -52,7 +52,7 @@ class RawMotorModes(IntEnum):
 
 
 class Sphero(Commands):
-    _did = 2
+    _did = 0x2
 
     @staticmethod
     def set_heading(toy, heading: int, proc=None):

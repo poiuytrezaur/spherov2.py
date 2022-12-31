@@ -3,7 +3,7 @@ from spherov2.listeners.api_and_shell import ApiProtocolVersion
 
 
 class ApiAndShell(Commands):
-    _did = 16
+    _did = 0x10
 
     @staticmethod
     def ping(toy, data, proc=None) -> bytearray:

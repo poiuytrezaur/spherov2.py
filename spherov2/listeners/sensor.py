@@ -10,7 +10,6 @@ class CollisionDetected(NamedTuple):
     y_axis: bool
     power_x: int
     power_y: int
-    power_z: int
     speed: int
     time: float
 

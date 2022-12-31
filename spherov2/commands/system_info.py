@@ -39,7 +39,7 @@ class BootReasons(IntEnum):
 
 
 class SystemInfo(Commands):
-    _did = 17
+    _did = 0x11
 
     @staticmethod
     def get_main_app_version(toy, proc=None):

@@ -64,7 +64,7 @@ class MotorIndexes(IntEnum):
 
 
 class Drive(Commands):
-    _did = 22
+    _did = 0x16
 
     @staticmethod
     def set_raw_motors(toy, left_mode: RawMotorModes, left_speed, right_mode: RawMotorModes, right_speed, proc=None):
@@ -76,7 +76,7 @@ class Drive(Commands):
 
     @staticmethod
     def drive_with_heading(toy, speed, heading, drive_flags: DriveFlags, proc=None):
-        toy._execute(Drive._encode(toy, 7, proc, [speed, *to_bytes(heading, 2), drive_flags]))
+        toy._execute(Drive._encode(toy, 0x7, proc, [speed, *to_bytes(heading, 2), drive_flags]))
 
     @staticmethod
     def generic_raw_motor(toy, index: GenericRawMotorIndexes, mode: GenericRawMotorModes, speed, proc=None):

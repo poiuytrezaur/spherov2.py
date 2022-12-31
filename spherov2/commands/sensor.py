@@ -78,11 +78,11 @@ class ThermalProtectionStatus(IntEnum):
 
 
 class Sensor(Commands):
-    _did = 24
+    _did = 0x18
 
     @staticmethod
     def set_sensor_streaming_mask(toy, interval, count, sensor_masks, proc=None):
-        toy._execute(Sensor._encode(toy, 0, proc, [*to_bytes(interval, 2), count, *to_bytes(sensor_masks, 4)]))
+        toy._execute(Sensor._encode(toy, 0x00, proc, [*to_bytes(interval, 2), count, *to_bytes(sensor_masks, 4)]))
 
     @staticmethod
     def get_sensor_streaming_mask(toy, proc=None):
@@ -93,7 +93,7 @@ class Sensor(Commands):
 
     @staticmethod
     def set_extended_sensor_streaming_mask(toy, sensor_masks, proc=None):
-        toy._execute(Sensor._encode(toy, 12, proc, to_bytes(sensor_masks, 4)))
+        toy._execute(Sensor._encode(toy, 0x0C, proc, to_bytes(sensor_masks, 4)))
 
     @staticmethod
     def get_extended_sensor_streaming_mask(toy, proc=None):
@@ -109,21 +109,21 @@ class Sensor(Commands):
     def configure_collision_detection(toy, collision_detection_method: CollisionDetectionMethods,
                                       x_threshold, y_threshold, x_speed, y_speed, dead_time, proc=None):
         toy._execute(Sensor._encode(
-            toy, 17, proc, [collision_detection_method, x_threshold, y_threshold, x_speed, y_speed, dead_time]))
+            toy, 0x11, proc, [collision_detection_method, x_threshold, y_threshold, x_speed, y_speed, dead_time]))
 
     @staticmethod
     def __collision_detected_notify_helper(listener, packet):
-        unpacked = struct.unpack('>3hB3hBL', packet.data)
+        unpacked = struct.unpack('>3hB2hBL', packet.data)
         listener(CollisionDetected(acceleration_x=unpacked[0] / 4096, acceleration_y=unpacked[1] / 4096,
                                    acceleration_z=unpacked[2] / 4096, x_axis=bool(unpacked[3] & 1),
                                    y_axis=bool(unpacked[3] & 2), power_x=unpacked[4], power_y=unpacked[5],
-                                   power_z=unpacked[6], speed=unpacked[7], time=unpacked[8] / 1000))
+                                   speed=unpacked[6], time=unpacked[7] / 1000))
 
     collision_detected_notify = (24, 18, 0xff), __collision_detected_notify_helper.__func__
 
     @staticmethod
     def reset_locator_x_and_y(toy, proc=None):
-        toy._execute(Sensor._encode(toy, 19, proc))
+        toy._execute(Sensor._encode(toy, 0x13, proc))
 
     @staticmethod
     def enable_collision_detected_notify(toy, enable: bool, proc=None):  # Untested
@@ -164,7 +164,7 @@ class Sensor(Commands):
 
     @staticmethod
     def magnetometer_calibrate_to_north(toy, proc=None):
-        toy._execute(Sensor.magnetometer_calibrate_to_north(Sensor._encode(toy, 37, proc)))
+        toy._execute(Sensor._encode(toy, 0x25, proc))
 
     magnetometer_north_yaw_notify = (24, 38, 0xff), lambda listener, p: listener(to_int(p.data))
 
@@ -186,7 +186,7 @@ class Sensor(Commands):
 
     @staticmethod
     def listen_for_robot_to_robot_infrared_message(toy, s, j, proc=None):  # Untested / Unknown param names
-        toy._execute(Sensor._encode(toy, 43, proc, [s, j]))
+        toy._execute(Sensor._encode(toy, 0x2b, proc, [s, j]))
 
     robot_to_robot_infrared_message_received_notify = (24, 44, 0xff), lambda listener, p: listener(p.data[0])
 
@@ -204,7 +204,7 @@ class Sensor(Commands):
 
     @staticmethod
     def stop_robot_to_robot_infrared_evading(toy, proc=None):
-        toy._execute(Sensor._encode(toy, 52, proc))
+        toy._execute(Sensor._encode(toy, 0x34, proc))
 
     @staticmethod
     def enable_color_detection_notify(toy, enable, interval, minimum_confidence_threshold, proc=None):

@@ -37,7 +37,7 @@ class UpdateMethods(IntEnum):
 
 
 class Firmware(Commands):
-    _did = 29
+    _did = 0x1D
 
     @staticmethod
     def get_pending_update_flags(toy, proc=None):

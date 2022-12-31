@@ -26,7 +26,7 @@ class SuspensionAnimationModes(IntEnum):
 
 
 class Animatronic(Commands):
-    _did = 23
+    _did = 0x17
 
     @staticmethod
     def play_animation(toy, animation: IntEnum, proc=None):

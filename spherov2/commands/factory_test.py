@@ -3,7 +3,7 @@ from spherov2.helper import to_bytes, to_int
 
 
 class FactoryTest(Commands):
-    _did = 31
+    _did = 0x1F
 
     @staticmethod
     def get_factory_mode_challenge(toy, proc=None):
