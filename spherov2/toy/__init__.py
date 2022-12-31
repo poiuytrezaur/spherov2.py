@@ -113,6 +113,8 @@ class Toy:
             queue.get().set_result(packet)
         for f in self.__listeners[key].values():
             threading.Thread(target=f, args=(packet,)).start()
+        for f in self.__listeners["all"].values():
+            threading.Thread(target=f, args=(packet,)).start()
 
     @classmethod
     def implements(cls, method, with_target=False):
